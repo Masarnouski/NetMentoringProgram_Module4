@@ -75,14 +75,13 @@ namespace SampleQueries
 
         [Category("Homework")]
         [Title("Task 002")]
-        [Description("This sample returns all customers and the list of their suppliers which are situated at the same regions and cities")]
+        [Description("This sample returns all customers and the list of their suppliers which are situated at the same regions and cities with grouping")]
 
         public void Linq002()
         {
             var customers = dataSource.Customers;
             var suppliers = dataSource.Suppliers;
 
-            // To test using Grouping
             var customersResult =
                from supplier in suppliers
                join customer in customers on new { supplier.Country, supplier.City } equals new { customer.Country, customer.City }
@@ -97,30 +96,41 @@ namespace SampleQueries
                 foreach (var cust in customer)
                     ObjectDumper.Write(cust.SupplierName);
             }
-            //var customersResult =
-            //from customer in customers
-            //select new
-            //{
-            //    customer.CompanyName,
-            //    suppliersCollection = from supplier in suppliers
-            //                          where (customer.City == supplier.City) && (customer.Country == supplier.Country)
-            //                          select new { supplier.SupplierName }
-            //};
+
+        }
+
+        [Category("Homework")]
+        [Title("Task 002_1")]
+        [Description("This sample returns all customers and the list of their suppliers which are situated at the same regions and cities without grouping")]
+
+        public void Linq002_1()
+        {
+            var customers = dataSource.Customers;
+            var suppliers = dataSource.Suppliers;
+            var customersResult =
+            from customer in customers
+            select new
+            {
+                customer.CompanyName,
+                suppliersCollection = from supplier in suppliers
+                                      where (customer.City == supplier.City) && (customer.Country == supplier.Country)
+                                      select new { supplier.SupplierName }
+            };
 
 
-            //foreach (var customer in customersResult)
-            //{
-            //    if (customer.suppliersCollection.Count() > 0)
-            //    {
-            //        ObjectDumper.Write("------Customer------");
+            foreach (var customer in customersResult)
+            {
+                if (customer.suppliersCollection.Count() > 0)
+                {
+                    ObjectDumper.Write("------Customer------");
 
-            //        ObjectDumper.Write(customer.CompanyName);
+                    ObjectDumper.Write(customer.CompanyName);
 
-            //        ObjectDumper.Write("------Collection of suppliers------");
-            //        ObjectDumper.Write(customer.suppliersCollection);
+                    ObjectDumper.Write("------Collection of suppliers------");
+                    ObjectDumper.Write(customer.suppliersCollection);
 
-            //    }
-            //}
+                }
+            }
 
         }
 
@@ -133,28 +143,24 @@ namespace SampleQueries
             var number = 1000;
             var customers = dataSource.Customers;
 
-            var customersResult = from customer in customers
-                                  select new
-                                  {
-                                      customer.CompanyName,
-                                      orders = from order in customer.Orders
-                                               where order.Total > number
-                                               select order
-                                  };
+            var results = dataSource.Customers
+                   .SelectMany(
+                       customer => customer.Orders,
+                       (customer, order) => new
+                       {
+                           Customer = customer.CompanyName,
+                           Total = order.Total
+                       })
+                   .Where(x => x.Total > number);
+            
 
-            foreach (var customer in customersResult)
+            foreach (var customer in results)
             {
-                if (customer.orders.Count() > 0)
-                {
-                    ObjectDumper.Write(customer.CompanyName);
-                    foreach (var order in customer.orders)
-                    {
-                        ObjectDumper.Write(order);
-                    }
-                }
-
+                ObjectDumper.Write(customer);
             }
+
         }
+    
         [Category("Homework")]
         [Title("Task 004")]
         [Description("This sample returns list of customers with the month and year of the first order")]
@@ -164,7 +170,7 @@ namespace SampleQueries
             var customers = dataSource.Customers;
 
             var customersResult = from customer in customers
-                                  where customer.Orders.Count() > 0
+                                  where customer.Orders.Length > 0
                                   select new
                                   {
                                       customer.CompanyName,
@@ -187,7 +193,7 @@ namespace SampleQueries
             var customers = dataSource.Customers;
 
             var customersResult = from customer in customers
-                                  where customer.Orders.Count() > 0
+                                  where customer.Orders.Length > 0
                                   select new
                                   {
                                       customer.CompanyName,
@@ -216,9 +222,8 @@ namespace SampleQueries
             var customers = dataSource.Customers;
 
             var customersResult = from customer in customers
-                                  where customer.PostalCode != null
-                                  where customer.PostalCode.All(code => char.IsDigit(code)) || customer.Region == null ||
-                                  !customer.Phone.Any(symbol => symbol == '(' || symbol == ')')
+                                  where !string.IsNullOrEmpty(customer.PostalCode)
+                                  where customer.PostalCode.Any(code => !char.IsDigit(code)) || string.IsNullOrEmpty(customer.Region) || !customer.Phone.StartsWith("(")
                                   select new { customer.CompanyName, customer.Region, customer.PostalCode, customer.Phone };
 
             foreach (var customer in customersResult)
@@ -259,34 +264,36 @@ namespace SampleQueries
             }
         }
 
+        private string GetCategory(Product product)
+        {
+            if (product.UnitPrice < 10)
+                return "< 10";
+            if (product.UnitPrice >= 10 && product.UnitPrice < 40)
+                return ">= 10 and < 40";
+            if (product.UnitPrice >= 40)
+                return "> 40";
+            else
+                return null;
+
+        }
+
         [Category("Homework")]
         [Title("Task 008")]
         [Description("This sample returns groups the goods into groups Cheap, Average Price, Expensive")]
-
         public void Linq8()
         {
-            var cheapProducts = dataSource.Products.Where(product => product.UnitPrice < 10);
-            var averageProducts = dataSource.Products.GroupBy(product => product.UnitPrice >= 10 && product.UnitPrice < 40)
-                .Where(group=>group.Key == true);
-            var expensiveProducts = dataSource.Products.GroupBy(product => product.UnitPrice >= 40);
+            var query = from product in dataSource.Products
+                        let category = GetCategory(product)
+                        group new { product.ProductName, product.UnitPrice } by category into categoryGroup
+                        select categoryGroup;
 
-            ObjectDumper.Write("----Cheap----");
-            foreach (var products in cheapProducts)
+            foreach (var categoryGroup in query)
             {
-              
-                ObjectDumper.Write(products);
-            }
-
-            ObjectDumper.Write("----Average----");
-            foreach (var product in averageProducts)
-            {
-                ObjectDumper.Write(product);
-            }
-
-            ObjectDumper.Write("----High Price----");
-            foreach (var product in expensiveProducts)
-            {
-                ObjectDumper.Write(product);
+                Console.WriteLine($"Key: {categoryGroup.Key}");
+                foreach (var item in categoryGroup)
+                {
+                    ObjectDumper.Write(item);
+                }
             }
         }
 
@@ -299,8 +306,8 @@ namespace SampleQueries
             var avgIndexes = dataSource.Customers.GroupBy(cust => cust.City, (city, customers) => new
             {
                 City = city,
-                AvgProfit = customers.Average(customer => customer.Orders.Sum(o => o.Total)),
-                Intensivity = (int) customers.Average(c => c.Orders.Length)
+                AvgProfit = decimal.Round(customers.SelectMany(customer => customer.Orders).Average(order => order.Total),2),
+                Intensivity = (int)customers.Average(c => c.Orders.Length)
             });
 
             foreach (var index in avgIndexes)
